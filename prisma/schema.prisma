@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model cache {
+  key        String @db.VarChar(255)
+  value      String @db.MediumText
+  expiration Int
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model cache_locks {
+  key        String @db.VarChar(255)
+  owner      String @db.VarChar(255)
+  expiration Int
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model failed_jobs {
+  id         BigInt   @db.UnsignedBigInt
+  uuid       String   @db.VarChar(255)
+  connection String   @db.Text
+  queue      String   @db.Text
+  payload    String   @db.LongText
+  exception  String   @db.LongText
+  failed_at  DateTime @default(now()) @db.Timestamp(0)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model job_batches {
+  id             String  @db.VarChar(255)
+  name           String  @db.VarChar(255)
+  total_jobs     Int
+  pending_jobs   Int
+  failed_jobs    Int
+  failed_job_ids String  @db.LongText
+  options        String? @db.MediumText
+  cancelled_at   Int?
+  created_at     Int
+  finished_at    Int?
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model jobs {
+  id           BigInt @db.UnsignedBigInt
+  queue        String @db.VarChar(255)
+  payload      String @db.LongText
+  attempts     Int    @db.UnsignedTinyInt
+  reserved_at  Int?   @db.UnsignedInt
+  available_at Int    @db.UnsignedInt
+  created_at   Int    @db.UnsignedInt
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model migrations {
+  id        Int    @db.UnsignedInt
+  migration String @db.VarChar(255)
+  batch     Int
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model password_reset_tokens {
+  email      String    @db.VarChar(255)
+  token      String    @db.VarChar(255)
+  created_at DateTime? @db.Timestamp(0)
+
+  @@ignore
+}
+
+model sensors {
+  id         Int       @id @default(autoincrement())
+  ph         Float?
+  suhu       Float?
+  kekeruhan  Float?
+  kualitas   Float?
+  created_at DateTime? @db.DateTime(0)
+  updated_at DateTime? @db.DateTime(0)
+}
+
+model sessions {
+  id            String  @id @db.VarChar(255)
+  user_id       BigInt? @db.UnsignedBigInt
+  ip_address    String? @db.VarChar(45)
+  user_agent    String? @db.Text
+  payload       String  @db.LongText
+  last_activity Int
+
+  @@index([last_activity], map: "sessions_last_activity_index")
+  @@index([user_id], map: "sessions_user_id_index")
+}

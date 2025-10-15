@@ -25,7 +25,7 @@ const items: Item[] = [
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, systemTheme } = useTheme()
   const [collapsed, setCollapsed] = useState<boolean>(false)
   const [activeItems, setActiveItems] = useState<{ [key: string]: boolean }>({})
   const [mounted, setMounted] = useState(false)
@@ -58,7 +58,22 @@ export function AppSidebar() {
   }, [pathname])
 
   const widthClass = collapsed ? "w-20" : "w-72"
-  const isDark = theme === "dark"
+  
+  // Fix: Gunakan resolvedTheme untuk mendapatkan theme yang benar
+  const resolvedTheme = theme === "system" ? systemTheme : theme
+  const isDark = mounted ? resolvedTheme === "dark" : false
+
+  // Tampilkan skeleton saat belum mounted untuk menghindari flash
+  if (!mounted) {
+    return (
+      <aside
+        aria-label="Sidebar Navigasi"
+        className={cn("relative h-dvh shrink-0", "transition-[width] duration-300 ease-in-out", widthClass)}
+      >
+        <div className="sticky top-0 h-dvh border rounded-none md:rounded-2xl bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 animate-pulse" />
+      </aside>
+    )
+  }
 
   return (
     <aside
@@ -192,31 +207,29 @@ export function AppSidebar() {
             isDark ? "bg-zinc-800/50" : "bg-zinc-200/50"
           )} />
           
-          {mounted && (
-            <button
-              onClick={() => setTheme(isDark ? "light" : "dark")}
-              className={cn(
-                "flex items-center gap-3.5 rounded-xl w-full",
-                "px-3.5 py-3 transition-all duration-200",
-                "relative overflow-hidden group",
-                isDark 
-                  ? "text-zinc-400 hover:bg-zinc-800/50 hover:text-white"
-                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
-              )}
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            >
-              {isDark ? (
-                <Sun className="size-5 transition-all duration-300 group-hover:scale-110 group-hover:rotate-12" />
-              ) : (
-                <Moon className="size-5 transition-all duration-300 group-hover:scale-110 group-hover:rotate-12" />
-              )}
-              {!collapsed && (
-                <span className="font-medium text-sm truncate">
-                  {isDark ? "Light Mode" : "Dark Mode"}
-                </span>
-              )}
-            </button>
-          )}
+          <button
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            className={cn(
+              "flex items-center gap-3.5 rounded-xl w-full",
+              "px-3.5 py-3 transition-all duration-200",
+              "relative overflow-hidden group",
+              isDark 
+                ? "text-zinc-400 hover:bg-zinc-800/50 hover:text-white"
+                : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
+            )}
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {isDark ? (
+              <Sun className="size-5 transition-all duration-300 group-hover:scale-110 group-hover:rotate-12" />
+            ) : (
+              <Moon className="size-5 transition-all duration-300 group-hover:scale-110 group-hover:rotate-12" />
+            )}
+            {!collapsed && (
+              <span className="font-medium text-sm truncate">
+                {isDark ? "Light Mode" : "Dark Mode"}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
