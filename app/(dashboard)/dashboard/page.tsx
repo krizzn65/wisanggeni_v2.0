@@ -8,15 +8,16 @@ export const revalidate = 30;
 
 export default async function DashboardPage() {
   // Ambil data sensor terakhir
-  const latest = await prisma.sensors.findFirst({
-    orderBy: { created_at: "desc" },
-  });
+  // Ambil data sensor terakhir langsung dari database
+const latest = await prisma.sensors.findFirst({
+  orderBy: { created_at: "desc" },
+});
 
-  // Ambil data historis (30 data terakhir)
-  const historicalData = await prisma.sensors.findMany({
-    orderBy: { created_at: "desc" },
-    take: 30,
-  });
+// Ambil data historis (30 data terakhir)
+const historicalData = await prisma.sensors.findMany({
+  orderBy: { created_at: "desc" },
+  take: 30,
+});
 
   // Format data untuk grafik (urutkan dari lama ke baru)
   const chartData = historicalData
