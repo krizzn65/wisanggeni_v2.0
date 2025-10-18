@@ -6,12 +6,14 @@ import { AlertTriangle, Droplets, Thermometer, Zap, Waves } from 'lucide-react';
 export default function KontrolTambakPage() {
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [aerators, setAerators] = useState([
-    { id: 1, name: 'Kolam 1', status: false },
-    { id: 2, name: 'Kolam 2', status: false },
-    { id: 3, name: 'Kolam 3', status: false },
-    { id: 4, name: 'Kolam 4', status: false },
-    { id: 5, name: 'Kolam 5', status: false },
-    { id: 6, name: 'Kolam 6', status: false },
+    { id: 1, name: 'Aerator 1', status: false },
+    { id: 2, name: 'Aerator 2', status: false },
+    { id: 3, name: 'Aerator 3', status: false },
+    { id: 4, name: 'Aerator 4', status: false },
+    { id: 5, name: 'Aerator 5', status: false },
+    { id: 6, name: 'Aerator 6', status: false },
+    { id: 7, name: 'Aerator 7', status: false },
+    { id: 8, name: 'Aerator 8', status: false },
   ]);
   const [sensorData, setSensorData] = useState({
     suhu: null,
@@ -53,14 +55,21 @@ export default function KontrolTambakPage() {
   const isKekeruhanBahaya = sensorData.kekeruhan && sensorData.kekeruhan > 300;
 
   const handleAeratorToggle = async (aeratorId) => {
-    if (!isAutoMode) {
+    if (!isAutoMode && !loading) {
+      const currentAerator = aerators.find(a => a.id === aeratorId);
+      const newStatus = !currentAerator.status;
+      const previousAerators = [...aerators];
+      
+      // Update UI immediately for better UX
+      const updatedAerators = aerators.map(aerator =>
+        aerator.id === aeratorId
+          ? { ...aerator, status: newStatus }
+          : aerator
+      );
+      setAerators(updatedAerators);
+      
       try {
-        const updatedAerators = aerators.map(aerator =>
-          aerator.id === aeratorId
-            ? { ...aerator, status: !aerator.status }
-            : aerator
-        );
-        
+        // Send to API
         const response = await fetch('/api/aerator/toggle', {
           method: 'POST',
           headers: {
@@ -68,23 +77,49 @@ export default function KontrolTambakPage() {
           },
           body: JSON.stringify({ 
             aeratorId,
-            status: !aerators.find(a => a.id === aeratorId).status 
+            status: newStatus
           }),
         });
         
-        if (response.ok) {
-          setAerators(updatedAerators);
+        if (!response.ok) {
+          // Rollback if API fails
+          setAerators(previousAerators);
+          console.error('Failed to toggle aerator');
         }
       } catch (error) {
+        // Rollback if error
+        setAerators(previousAerators);
         console.error('Error toggling aerator:', error);
       }
     }
   };
 
   const toggleAllAerators = async (status) => {
-    if (!isAutoMode) {
+    if (!isAutoMode && !loading) {
+      const previousAerators = [...aerators];
+      
+      // Update UI immediately
       const updatedAerators = aerators.map(aerator => ({ ...aerator, status }));
       setAerators(updatedAerators);
+      
+      try {
+        // Send to API for all aerators
+        const response = await fetch('/api/aerator/toggle-all', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ status }),
+        });
+        
+        if (!response.ok) {
+          setAerators(previousAerators);
+          console.error('Failed to toggle all aerators');
+        }
+      } catch (error) {
+        setAerators(previousAerators);
+        console.error('Error toggling all aerators:', error);
+      }
     }
   };
 
@@ -174,82 +209,6 @@ export default function KontrolTambakPage() {
               }`}
             />
           </button>
-        </div>
-      </div>
-
-      {/* Kontrol Aerator Cards */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-white transition-colors">
-            Kontrol Aerator
-          </h2>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              {activeCount}/6 Aktif
-            </span>
-            {!isAutoMode && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => toggleAllAerators(true)}
-                  className="text-xs px-2 py-1 rounded-lg bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-500/30 font-medium transition-colors"
-                >
-                  Semua ON
-                </button>
-                <button
-                  onClick={() => toggleAllAerators(false)}
-                  className="text-xs px-2 py-1 rounded-lg bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/30 font-medium transition-colors"
-                >
-                  Semua OFF
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {aerators.map((aerator) => (
-            <button
-              key={aerator.id}
-              onClick={() => handleAeratorToggle(aerator.id)}
-              disabled={isAutoMode || loading}
-              className={`rounded-xl p-3 transition-all duration-300 border ${
-                isAutoMode 
-                  ? 'opacity-50 bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800/50 cursor-not-allowed' 
-                  : aerator.status
-                  ? 'bg-green-50 dark:bg-green-500/5 border-green-200 dark:border-green-500/20 hover:shadow-lg hover:scale-105 cursor-pointer'
-                  : 'bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800/50 hover:shadow-lg hover:border-zinc-300 dark:hover:border-zinc-700 hover:scale-105 cursor-pointer'
-              } shadow-sm dark:shadow-none`}
-            >
-              <div className="flex flex-col items-center gap-2">
-                <div className={`p-2 rounded-lg transition-all duration-300 border ${
-                  aerator.status 
-                    ? 'bg-green-100 dark:bg-green-500/10 border-green-200 dark:border-green-500/20' 
-                    : 'bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700/50'
-                }`}>
-                  <Waves className={`size-5 ${aerator.status ? 'text-green-500' : 'text-zinc-400'}`} />
-                </div>
-                
-                <div className="text-center">
-                  <p className="text-xs font-bold text-zinc-900 dark:text-white transition-colors">
-                    {aerator.name}
-                  </p>
-                  <p className={`text-xs font-medium ${aerator.status ? 'text-green-600 dark:text-green-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                    {aerator.status ? 'Menyala' : 'Mati'}
-                  </p>
-                </div>
-
-                <div className={`w-full py-1.5 px-2 rounded-lg text-xs font-semibold transition-all duration-300 text-center ${
-                  isAutoMode || loading
-                    ? 'bg-zinc-200 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-600'
-                    : aerator.status
-                    ? 'bg-red-500 text-white'
-                    : 'bg-green-500 text-white'
-                }`}>
-                  {aerator.status ? 'OFF' : 'ON'}
-                </div>
-              </div>
-            </button>
-          ))}
         </div>
       </div>
 
@@ -398,6 +357,91 @@ export default function KontrolTambakPage() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Kontrol Aerator Cards */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-zinc-900 dark:text-white transition-colors">
+            Kontrol Aerator
+          </h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              {activeCount}/8 Aktif
+            </span>
+            {!isAutoMode && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => toggleAllAerators(true)}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-500/30 font-medium transition-colors"
+                >
+                  Semua ON
+                </button>
+                <button
+                  onClick={() => toggleAllAerators(false)}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/30 font-medium transition-colors"
+                >
+                  Semua OFF
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          {aerators.map((aerator) => (
+            <div
+              key={aerator.id}
+              className={`rounded-xl p-5 transition-all duration-300 border ${
+                isAutoMode 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'cursor-default'
+              } ${
+                aerator.status
+                  ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 shadow-md'
+                  : 'bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800/50 shadow-sm'
+              } dark:shadow-none`}
+            >
+              <div className="flex flex-col items-center gap-3">
+                <div className={`p-3 rounded-xl transition-all duration-300 border ${
+                  aerator.status 
+                    ? 'bg-green-100 dark:bg-green-500/10 border-green-200 dark:border-green-500/20' 
+                    : 'bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700/50'
+                }`}>
+                  <Waves className={`size-7 ${aerator.status ? 'text-green-500' : 'text-zinc-400'}`} />
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-sm font-bold text-zinc-900 dark:text-white transition-colors mb-1">
+                    {aerator.name}
+                  </p>
+                  <p className={`text-sm font-medium ${aerator.status ? 'text-green-600 dark:text-green-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                    {aerator.status ? 'Aktif' : 'Mati'}
+                  </p>
+                </div>
+
+                {!isAutoMode && !loading && (
+                  <button
+                    onClick={() => handleAeratorToggle(aerator.id)}
+                    className={`w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-300 text-center ${
+                      aerator.status
+                        ? 'bg-red-500 text-white hover:bg-red-600 active:scale-95'
+                        : 'bg-green-500 text-white hover:bg-green-600 active:scale-95'
+                    }`}
+                  >
+                    {aerator.status ? 'Matikan' : 'Aktifkan'}
+                  </button>
+                )}
+
+                {(isAutoMode || loading) && (
+                  <div className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-300 text-center bg-zinc-200 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-600">
+                    {loading ? 'Loading...' : 'Auto'}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
