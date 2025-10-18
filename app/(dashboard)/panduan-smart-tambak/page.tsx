@@ -8,7 +8,7 @@ import {
   Thermometer,
   Activity,
   Waves,
-  Fish,
+  Shrimp,
   AlertTriangle,
   CheckCircle2,
   Info,
@@ -101,7 +101,7 @@ export default function PanduanSmartTambakPage() {
           >
             <div className="flex items-start gap-4">
               <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}>
-                <Fish className="w-8 h-8 flex-shrink-0 mt-1" />
+                <Shrimp className="w-12 h-12 text-white" />
               </motion.div>
               <div>
                 <h2 className="text-2xl font-bold mb-2">Tentang Udang Vaname</h2>

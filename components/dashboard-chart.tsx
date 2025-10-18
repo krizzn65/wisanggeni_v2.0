@@ -1,6 +1,6 @@
 "use client";
 
-import { Thermometer, Droplets, Wind, Activity } from "lucide-react";
+import { Thermometer, TestTube, Droplets, Bubbles} from "lucide-react";
 import {
   LineChart,
   Line,
@@ -72,7 +72,7 @@ export function DashboardCharts({ chartData }: DashboardChartsProps) {
       {/* Grafik pH Air */}
       <div className="rounded-2xl p-6 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800/50 shadow-sm dark:shadow-none">
         <h3 className="text-lg font-semibold mb-4 text-zinc-900 dark:text-white flex items-center gap-2">
-          <Droplets className="size-5 text-blue-500" />
+          <TestTube className="size-5 text-blue-500" />
           Grafik pH Air
         </h3>
         <ResponsiveContainer width="100%" height={250}>
@@ -115,7 +115,7 @@ export function DashboardCharts({ chartData }: DashboardChartsProps) {
       {/* Grafik Kekeruhan */}
       <div className="rounded-2xl p-6 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800/50 shadow-sm dark:shadow-none">
         <h3 className="text-lg font-semibold mb-4 text-zinc-900 dark:text-white flex items-center gap-2">
-          <Wind className="size-5 text-cyan-500" />
+          <Bubbles className="size-5 text-cyan-500" />
           Grafik Kekeruhan
         </h3>
         <ResponsiveContainer width="100%" height={250}>
@@ -157,7 +157,7 @@ export function DashboardCharts({ chartData }: DashboardChartsProps) {
       {/* Grafik Kualitas Air */}
       <div className="rounded-2xl p-6 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800/50 shadow-sm dark:shadow-none">
         <h3 className="text-lg font-semibold mb-4 text-zinc-900 dark:text-white flex items-center gap-2">
-          <Activity className="size-5 text-purple-500" />
+          <Droplets className="size-5 text-purple-500" />
           Grafik Indeks Kualitas Air
         </h3>
         <ResponsiveContainer width="100%" height={250}>
