@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   title: "WISANGGENI",
   description: "Water Integrated System and Analysis for Sustainable Aquaculture Generation",
   generator: "Next.js",
+  icons: {
+    icon: "/logo.png", // bisa juga .png
+  },
 }
 
 export default function RootLayout({

@@ -114,21 +114,11 @@ export function AppSidebar() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div
-              className={cn(
-                "size-10 rounded-2xl grid place-items-center shadow-lg shrink-0",
-                isDark ? "bg-white" : "bg-zinc-900"
-              )}
-            >
-              <span
-                className={cn(
-                  "text-sm font-bold",
-                  isDark ? "text-zinc-900" : "text-white"
-                )}
-              >
-                ST
-              </span>
-            </div>
+            <img
+              src="/logo.png"
+              alt="Logo WISANGGENI"
+              className="size-8 rounded-lg object-cover"
+            />
             {!collapsed && (
               <div className="min-w-0 overflow-hidden">
                 <p
