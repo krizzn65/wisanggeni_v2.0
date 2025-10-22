@@ -3,43 +3,43 @@
     {
       "id": 1,
       "name": "Aerator 1",
-      "status": true
+      "status": false
     },
     {
       "id": 2,
       "name": "Aerator 2",
-      "status": true
+      "status": false
     },
     {
       "id": 3,
       "name": "Aerator 3",
-      "status": true
+      "status": false
     },
     {
       "id": 4,
       "name": "Aerator 4",
-      "status": true
+      "status": false
     },
     {
       "id": 5,
       "name": "Aerator 5",
-      "status": true
+      "status": false
     },
     {
       "id": 6,
       "name": "Aerator 6",
-      "status": true
+      "status": false
     },
     {
       "id": 7,
       "name": "Aerator 7",
-      "status": true
+      "status": false
     },
     {
       "id": 8,
       "name": "Aerator 8",
-      "status": true
+      "status": false
     }
   ],
-  "lastUpdated": "2025-10-22T16:48:33.204Z"
+  "lastUpdated": "2025-10-22T18:18:06.685Z"
 }

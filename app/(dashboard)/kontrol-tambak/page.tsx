@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Droplets, Thermometer, Zap, Waves } from 'lucide-react';
 
 // Default aerator states
@@ -15,6 +15,68 @@ const defaultAerators = [
   { id: 8, name: 'Aerator 8', status: false },
 ];
 
+// Helper function to get status styles
+function getStatusStyles(status: string) {
+  switch (status) {
+    case "baik":
+      return {
+        bgColor: "bg-green-100 dark:bg-green-500/20",
+        textColor: "text-green-700 dark:text-green-400",
+        iconBgColor: "bg-green-100 dark:bg-green-500/10",
+        iconBorderColor: "border-green-200 dark:border-green-500/20",
+        iconColor: "text-green-500",
+        cardBgColor: "bg-green-50 dark:bg-green-500/5",
+        cardBorderColor: "border-green-200 dark:border-green-500/20",
+      }
+    case "waspada":
+      return {
+        bgColor: "bg-yellow-100 dark:bg-yellow-500/20",
+        textColor: "text-yellow-700 dark:text-yellow-400",
+        iconBgColor: "bg-yellow-100 dark:bg-yellow-500/10",
+        iconBorderColor: "border-yellow-200 dark:border-yellow-500/20",
+        iconColor: "text-yellow-500",
+        cardBgColor: "bg-yellow-50 dark:bg-yellow-500/5",
+        cardBorderColor: "border-yellow-200 dark:border-yellow-500/20",
+      }
+    case "buruk":
+      return {
+        bgColor: "bg-red-100 dark:bg-red-500/20",
+        textColor: "text-red-700 dark:text-red-400",
+        iconBgColor: "bg-red-100 dark:bg-red-500/10",
+        iconBorderColor: "border-red-200 dark:border-red-500/20",
+        iconColor: "text-red-500",
+        cardBgColor: "bg-red-50 dark:bg-red-500/5",
+        cardBorderColor: "border-red-200 dark:border-red-500/20",
+      }
+    default:
+      return {
+        bgColor: "bg-gray-100 dark:bg-gray-500/20",
+        textColor: "text-gray-700 dark:text-gray-400",
+        iconBgColor: "bg-gray-100 dark:bg-gray-500/10",
+        iconBorderColor: "border-gray-200 dark:border-gray-500/20",
+        iconColor: "text-gray-500",
+        cardBgColor: "bg-white dark:bg-zinc-900/50",
+        cardBorderColor: "border-zinc-200 dark:border-zinc-800/50",
+      }
+  }
+}
+
+// Helper function to determine temperature status
+function getTemperatureStatus(suhu: number | null) {
+  if (!suhu) return null;
+  if (suhu >= 25 && suhu <= 32) return "baik";
+  if ((suhu < 25 && suhu >= 20) || (suhu > 32 && suhu <= 35)) return "waspada";
+  return "buruk";
+}
+
+// Helper function to determine turbidity status
+function getTurbidityStatus(kekeruhan: number | null) {
+  if (!kekeruhan) return null;
+  if (kekeruhan <= 200) return "baik";
+  if (kekeruhan > 200 && kekeruhan <= 300) return "waspada";
+  return "buruk";
+}
+
 export default function KontrolTambakPage() {
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [aerators, setAerators] = useState(defaultAerators);
@@ -26,6 +88,23 @@ export default function KontrolTambakPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [autoActivated, setAutoActivated] = useState(false);
+  const [autoActivationReason, setAutoActivationReason] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [autoModeInitialized, setAutoModeInitialized] = useState(false);
+  const [restoringState, setRestoringState] = useState(false);
+  const autoModeRef = useRef(false);
+  const aeratorsRef = useRef(defaultAerators);
+  const lastAutoCheckRef = useRef({});
+
+  // Update refs when state changes
+  useEffect(() => {
+    autoModeRef.current = isAutoMode;
+  }, [isAutoMode]);
+
+  useEffect(() => {
+    aeratorsRef.current = aerators;
+  }, [aerators]);
 
   // === LOAD AERATOR STATES FROM SERVER ===
   const loadAeratorStates = async () => {
@@ -34,9 +113,22 @@ export default function KontrolTambakPage() {
       const data = await response.json();
       
       if (data.success && data.data.aerators) {
-        setAerators(data.data.aerators);
-        // Also save to localStorage as backup
-        localStorage.setItem('aeratorStates', JSON.stringify(data.data.aerators));
+        // Check if we're in auto mode and need to override server state
+        const savedAutoMode = localStorage.getItem("autoMode");
+        const savedAutoActivated = localStorage.getItem("autoActivated");
+        
+        if (savedAutoMode === "true" && savedAutoActivated !== "true") {
+          // We're in auto mode but not auto-activated, ensure all aerators are off
+          const correctedStates = data.data.aerators.map((aerator: any) => ({
+            ...aerator,
+            status: false
+          }));
+          setAerators(correctedStates);
+          localStorage.setItem('aeratorStates', JSON.stringify(correctedStates));
+        } else {
+          setAerators(data.data.aerators);
+          localStorage.setItem('aeratorStates', JSON.stringify(data.data.aerators));
+        }
       }
     } catch (error) {
       console.error('Error loading aerator states:', error);
@@ -63,26 +155,37 @@ export default function KontrolTambakPage() {
     }
   };
 
-  // === LOAD STATUS AUTO MODE DARI LOCALSTORAGE ===
+  // === LOAD AUTO MODE STATES FROM LOCALSTORAGE ===
   useEffect(() => {
     try {
       const savedMode = localStorage.getItem("autoMode");
       if (savedMode === "true") {
         setIsAutoMode(true);
+        
+        // Load auto activation state
+        const savedAutoActivated = localStorage.getItem("autoActivated");
+        const savedAutoReason = localStorage.getItem("autoActivationReason");
+        
+        if (savedAutoActivated === "true") {
+          setAutoActivated(true);
+          setAutoActivationReason(savedAutoReason || "");
+        }
       }
     } catch (error) {
       console.error('Error reading from localStorage:', error);
     }
   }, []);
 
-  // === SIMPAN STATUS AUTO MODE SETIAP BERUBAH ===
+  // === SAVE AUTO MODE STATES TO LOCALSTORAGE ===
   useEffect(() => {
     try {
       localStorage.setItem("autoMode", isAutoMode);
+      localStorage.setItem("autoActivated", autoActivated.toString());
+      localStorage.setItem("autoActivationReason", autoActivationReason);
     } catch (error) {
       console.error('Error writing to localStorage:', error);
     }
-  }, [isAutoMode]);
+  }, [isAutoMode, autoActivated, autoActivationReason]);
 
   // === INITIAL LOAD ===
   useEffect(() => {
@@ -121,123 +224,282 @@ export default function KontrolTambakPage() {
     }
   }, [initialLoading]);
 
-  const isSuhuBahaya = sensorData.suhu && (sensorData.suhu > 32 || sensorData.suhu < 25);
-  const isKekeruhanBahaya = sensorData.kekeruhan && sensorData.kekeruhan > 300;
-
-  const handleAeratorToggle = async (aeratorId) => {
-    if (!isAutoMode && !loading && !initialLoading) {
-      const currentAerator = aerators.find(a => a.id === aeratorId);
-      const newStatus = !currentAerator.status;
-      const previousAerators = [...aerators];
+  // === RESTORE AUTO MODE STATE ===
+  useEffect(() => {
+    if (isAutoMode && !initialLoading && !autoModeInitialized && !restoringState) {
+      setRestoringState(true);
+      console.log('Restoring auto mode state - ensuring aerators are off');
       
-      // Optimistic update
-      const updatedAerators = aerators.map(aerator =>
-        aerator.id === aeratorId
-          ? { ...aerator, status: newStatus }
-          : aerator
-      );
-      setAerators(updatedAerators);
-      saveAeratorStates(updatedAerators);
-      
-      try {
-        console.log('Sending API request', { aeratorId, status: newStatus });
-        const response = await fetch('/api/aerator/toggle', {
+      // When auto mode is on and we're initializing, ensure all aerators are off
+      const anyOn = aerators.some(a => a.status);
+      if (anyOn) {
+        const updatedAerators = aerators.map(aerator => ({ ...aerator, status: false }));
+        setAerators(updatedAerators);
+        saveAeratorStates(updatedAerators);
+        
+        // Sync with server
+        fetch('/api/aerator/toggle-all', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ aeratorId, status: newStatus }),
+          body: JSON.stringify({ status: false }),
+        }).catch(error => {
+          console.error('Error syncing with server:', error);
         });
-        
-        const data = await response.json();
-        console.log('API response', data);
-        
-        if (!response.ok || !data.success) {
-          throw new Error(data.message || 'API request failed');
-        }
-        
-        // Update with server response (in case there are changes)
-        if (data.data.allStates) {
-          setAerators(data.data.allStates);
-          saveAeratorStates(data.data.allStates);
-        }
-        
-        setError(null);
-      } catch (error) {
-        console.error('Error toggling aerator:', error);
-        setError(`Failed to toggle aerator: ${error.message}`);
-        // Revert the optimistic update
-        setAerators(previousAerators);
-        saveAeratorStates(previousAerators);
       }
+      
+      setAutoModeInitialized(true);
+      setRestoringState(false);
+    }
+  }, [isAutoMode, initialLoading, autoModeInitialized, restoringState, aerators]);
+
+  // === AUTO MODE LOGIC ===
+  useEffect(() => {
+    // Skip if not in auto mode, still loading, processing, or restoring
+    if (!isAutoMode || initialLoading || loading || isProcessing || restoringState) return;
+
+    const suhuStatus = getTemperatureStatus(sensorData.suhu);
+    const kekeruhanStatus = getTurbidityStatus(sensorData.kekeruhan);
+    
+    // Check if either parameter is "buruk"
+    const hasBadParameter = suhuStatus === "buruk" || kekeruhanStatus === "buruk";
+    
+    // Create a key for the current state to avoid unnecessary re-runs
+    const currentStateKey = `${suhuStatus}-${kekeruhanStatus}-${autoActivated}`;
+    
+    // Skip if state hasn't changed
+    if (lastAutoCheckRef.current.key === currentStateKey) return;
+    
+    console.log('Auto mode check:', {
+      suhuStatus,
+      kekeruhanStatus,
+      hasBadParameter,
+      autoActivated,
+      anyOn: aerators.some(a => a.status),
+      autoModeInitialized
+    });
+
+    if (hasBadParameter) {
+      // Turn on all aerators if they're not already on
+      const allOff = aerators.every(a => !a.status);
+      if (allOff) {
+        console.log('Auto activating aerators due to bad parameters');
+        setAutoActivated(true);
+        
+        // Set the reason for activation
+        if (suhuStatus === "buruk" && kekeruhanStatus === "buruk") {
+          setAutoActivationReason("suhu dan kekeruhan air");
+        } else if (suhuStatus === "buruk") {
+          setAutoActivationReason("suhu air");
+        } else {
+          setAutoActivationReason("kekeruhan air");
+        }
+        
+        // Turn on all aerators
+        const updatedAerators = aerators.map(aerator => ({ ...aerator, status: true }));
+        setAerators(updatedAerators);
+        saveAeratorStates(updatedAerators);
+        
+        // Sync with server
+        fetch('/api/aerator/toggle-all', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: true }),
+        }).catch(error => {
+          console.error('Error syncing with server:', error);
+        });
+      }
+    } else {
+      // Turn off all aerators if they were auto-activated and parameters are now normal
+      const anyOn = aerators.some(a => a.status);
+      if (anyOn && autoActivated) {
+        console.log('Auto deactivating aerators - parameters back to normal');
+        setAutoActivated(false);
+        setAutoActivationReason("");
+        
+        // Turn off all aerators
+        const updatedAerators = aerators.map(aerator => ({ ...aerator, status: false }));
+        setAerators(updatedAerators);
+        saveAeratorStates(updatedAerators);
+        
+        // Sync with server
+        fetch('/api/aerator/toggle-all', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: false }),
+        }).catch(error => {
+          console.error('Error syncing with server:', error);
+        });
+      }
+    }
+    
+    // Update last check state
+    lastAutoCheckRef.current = {
+      key: currentStateKey,
+      timestamp: Date.now()
+    };
+  }, [isAutoMode, sensorData, initialLoading, loading, isProcessing, aerators, autoActivated, autoModeInitialized, restoringState]);
+
+  // Get status for temperature and turbidity
+  const suhuStatus = getTemperatureStatus(sensorData.suhu);
+  const kekeruhanStatus = getTurbidityStatus(sensorData.kekeruhan);
+  const suhuStyles = getStatusStyles(suhuStatus || "");
+  const kekeruhanStyles = getStatusStyles(kekeruhanStatus || "");
+  
+  // Check if there's any warning
+  const hasWarning = suhuStatus === "buruk" || kekeruhanStatus === "buruk" || 
+                    suhuStatus === "waspada" || kekeruhanStatus === "waspada";
+
+  const handleAeratorToggle = async (aeratorId) => {
+    // Prevent manual control in auto mode
+    if (isAutoMode || loading || initialLoading || isProcessing) return;
+
+    setIsProcessing(true);
+    const currentAerator = aerators.find(a => a.id === aeratorId);
+    const newStatus = !currentAerator.status;
+    const previousAerators = [...aerators];
+    
+    // Optimistic update
+    const updatedAerators = aerators.map(aerator =>
+      aerator.id === aeratorId
+        ? { ...aerator, status: newStatus }
+        : aerator
+    );
+    setAerators(updatedAerators);
+    saveAeratorStates(updatedAerators);
+    
+    try {
+      console.log('Sending API request', { aeratorId, status: newStatus });
+      const response = await fetch('/api/aerator/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aeratorId, status: newStatus }),
+      });
+      
+      const data = await response.json();
+      console.log('API response', data);
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'API request failed');
+      }
+      
+      // Update with server response (in case there are changes)
+      if (data.data.allStates) {
+        setAerators(data.data.allStates);
+        saveAeratorStates(data.data.allStates);
+      }
+      
+      setError(null);
+    } catch (error) {
+      console.error('Error toggling aerator:', error);
+      setError(`Failed to toggle aerator: ${error.message}`);
+      // Revert the optimistic update
+      setAerators(previousAerators);
+      saveAeratorStates(previousAerators);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const toggleAllAerators = async (status) => {
-    if (!isAutoMode && !loading && !initialLoading) {
-      const previousAerators = [...aerators];
-      const updatedAerators = aerators.map(aerator => ({ ...aerator, status }));
-      setAerators(updatedAerators);
-      saveAeratorStates(updatedAerators);
-      
-      try {
-        console.log('Sending toggle all request', { status });
-        const response = await fetch('/api/aerator/toggle-all', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status }),
-        });
-        
-        const data = await response.json();
-        console.log('Toggle all response', data);
-        
-        if (!response.ok || !data.success) {
-          throw new Error(data.message || 'API request failed');
-        }
-        
-        // Update with server response
-        if (data.data.allStates) {
-          setAerators(data.data.allStates);
-          saveAeratorStates(data.data.allStates);
-        }
-        
-        setError(null);
-      } catch (error) {
-        console.error('Error toggling all aerators:', error);
-        setError(`Failed to toggle all aerators: ${error.message}`);
-        setAerators(previousAerators);
-        saveAeratorStates(previousAerators);
-      }
-    }
-  };
+    // Prevent manual control in auto mode
+    if (isAutoMode || loading || initialLoading || isProcessing) return;
 
-  const handleAutoModeToggle = async () => {
-    const newMode = !isAutoMode;
-    setIsAutoMode(newMode);
-
+    setIsProcessing(true);
+    const previousAerators = [...aerators];
+    const updatedAerators = aerators.map(aerator => ({ ...aerator, status }));
+    setAerators(updatedAerators);
+    saveAeratorStates(updatedAerators);
+    
     try {
-      const response = await fetch('/api/aerator/status', {
+      console.log('Sending toggle all request', { status });
+      const response = await fetch('/api/aerator/toggle-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          isAutoMode: newMode,
-          activeCount: newMode ? 8 : aerators.filter(a => a.status).length,
-        }),
+        body: JSON.stringify({ status }),
       });
-
+      
       const data = await response.json();
+      console.log('Toggle all response', data);
+      
       if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Failed to update mode');
+        throw new Error(data.message || 'API request failed');
       }
-
+      
       // Update with server response
       if (data.data.allStates) {
         setAerators(data.data.allStates);
         saveAeratorStates(data.data.allStates);
       }
+      
+      setError(null);
+    } catch (error) {
+      console.error('Error toggling all aerators:', error);
+      setError(`Failed to toggle all aerators: ${error.message}`);
+      setAerators(previousAerators);
+      saveAeratorStates(previousAerators);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleAutoModeToggle = async () => {
+    if (isProcessing) return;
+    
+    setIsProcessing(true);
+    const newMode = !isAutoMode;
+    
+    try {
+      // Update UI immediately
+      setIsAutoMode(newMode);
+      setAutoModeInitialized(false); // Reset initialization flag
+      setRestoringState(false); // Reset restoring state flag
+      
+      // Reset auto activation state
+      setAutoActivated(false);
+      setAutoActivationReason("");
+      
+      // When auto mode is turned on, turn off all aerators
+      if (newMode) {
+        console.log('Auto mode activated - turning off all aerators');
+        const updatedAerators = aerators.map(aerator => ({ ...aerator, status: false }));
+        setAerators(updatedAerators);
+        saveAeratorStates(updatedAerators);
+        
+        // Sync with server
+        const response = await fetch('/api/aerator/toggle-all', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: false }),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to update aerator states');
+        }
+      }
+      
+      // Update server with mode change
+      const modeResponse = await fetch('/api/aerator/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isAutoMode: newMode,
+          activeCount: 0,
+        }),
+      });
+
+      const modeData = await modeResponse.json();
+      if (!modeResponse.ok || !modeData.success) {
+        throw new Error(modeData.message || 'Failed to update mode');
+      }
+
+      setError(null);
     } catch (error) {
       console.error('Error updating auto mode:', error);
       setError(`Failed to update mode: ${error.message}`);
       // Revert the mode change
       setIsAutoMode(!newMode);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -251,7 +513,6 @@ export default function KontrolTambakPage() {
   };
 
   const activeCount = aerators.filter(a => a.status).length;
-  const hasWarning = isSuhuBahaya || isKekeruhanBahaya;
 
   if (initialLoading) {
     return (
@@ -293,6 +554,40 @@ export default function KontrolTambakPage() {
         </div>
       )}
 
+      {/* Auto Activation Warning */}
+      {isAutoMode && autoActivated && (
+        <div className="rounded-xl p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 shadow-sm">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-blue-700 dark:text-blue-400 mb-1">
+                ⚠️ Mode Otomatis Aktif
+              </p>
+              <p className="text-sm text-blue-600 dark:text-blue-400/80">
+                Semua aerator telah diaktifkan secara otomatis karena {autoActivationReason} dalam kondisi "buruk".
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto Mode Status */}
+      {isAutoMode && !autoActivated && (
+        <div className="rounded-xl p-4 bg-gray-50 dark:bg-gray-500/10 border border-gray-200 dark:border-gray-500/20 shadow-sm">
+          <div className="flex items-start gap-3">
+            <Zap className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-gray-700 dark:text-gray-400 mb-1">
+                Mode Otomatis Aktif
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400/80">
+                Semua aerator dalam kondisi mati. Aerator akan aktif secara otomatis jika ada parameter yang mencapai status "buruk".
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Peringatan Global */}
       {hasWarning && !isAutoMode && (
         <div className="rounded-xl p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 shadow-sm">
@@ -303,11 +598,17 @@ export default function KontrolTambakPage() {
                 ⚠️ Peringatan Sistem Monitoring
               </p>
               <ul className="text-sm text-red-600 dark:text-red-400/80 space-y-1">
-                {isSuhuBahaya && (
-                  <li>• Suhu air {sensorData.suhu > 32 ? 'terlalu tinggi' : 'terlalu rendah'} ({sensorData.suhu}°C)</li>
+                {suhuStatus === "buruk" && (
+                  <li>• Suhu air {sensorData.suhu > 35 ? 'sangat tinggi' : sensorData.suhu < 20 ? 'sangat rendah' : 'tidak normal'} ({sensorData.suhu}°C)</li>
                 )}
-                {isKekeruhanBahaya && (
+                {suhuStatus === "waspada" && (
+                  <li>• Suhu air {sensorData.suhu > 32 ? 'tinggi' : 'rendah'} ({sensorData.suhu}°C)</li>
+                )}
+                {kekeruhanStatus === "buruk" && (
                   <li>• Tingkat kekeruhan sangat tinggi ({sensorData.kekeruhan} NTU)</li>
+                )}
+                {kekeruhanStatus === "waspada" && (
+                  <li>• Tingkat kekeruhan tinggi ({sensorData.kekeruhan} NTU)</li>
                 )}
               </ul>
               <p className="text-sm text-red-600 dark:text-red-400/80 mt-2 font-medium">
@@ -339,9 +640,10 @@ export default function KontrolTambakPage() {
           
           <button
             onClick={handleAutoModeToggle}
+            disabled={isProcessing}
             className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 ${
               isAutoMode ? 'bg-blue-500' : 'bg-zinc-300 dark:bg-zinc-700'
-            }`}
+            } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <span
               className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform ${
@@ -366,133 +668,119 @@ export default function KontrolTambakPage() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* Suhu Card */}
-          <div className={`rounded-xl p-4 transition-all duration-300 border ${
-            isAutoMode 
-              ? 'opacity-40 bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800/50' 
-              : isSuhuBahaya 
-              ? 'bg-red-50 dark:bg-red-500/5 border-red-200 dark:border-red-500/20' 
-              : 'bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800/50 hover:shadow-md'
+          {/* Suhu Card - Always active */}
+          <div className={`rounded-xl p-4 transition-all duration-300 border hover:shadow-md ${
+            suhuStyles.cardBgColor + " " + suhuStyles.cardBorderColor
           } shadow-sm dark:shadow-none`}>
             <div className="flex items-center justify-between mb-3">
               <div className={`p-2 rounded-lg transition-all duration-300 border ${
-                isAutoMode 
-                  ? 'bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700/50' 
-                  : isSuhuBahaya 
-                  ? 'bg-red-100 dark:bg-red-500/10 border-red-200 dark:border-red-500/20' 
-                  : 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20'
+                suhuStyles.iconBgColor + " " + suhuStyles.iconBorderColor
               }`}>
-                <Thermometer className={`size-5 ${
-                  isAutoMode ? 'text-zinc-400' : isSuhuBahaya ? 'text-red-500' : 'text-orange-500'
-                }`} />
+                <Thermometer className={`size-5 ${suhuStyles.iconColor}`} />
               </div>
-              {!isAutoMode && (
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
-                  isSuhuBahaya 
-                    ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400' 
-                    : 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400'
-                }`}>
-                  {isSuhuBahaya ? 'Bahaya' : 'Normal'}
-                </span>
-              )}
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
+                suhuStyles.bgColor + " " + suhuStyles.textColor
+              }`}>
+                {suhuStatus === "baik" ? "Baik" : suhuStatus === "waspada" ? "Waspada" : "Buruk"}
+              </span>
             </div>
             
             <div>
-              <p className={`text-xs font-medium mb-1 transition-colors ${
-                isAutoMode ? 'text-zinc-400 dark:text-zinc-600' : 'text-zinc-600 dark:text-zinc-400'
-              }`}>
+              <p className="text-xs font-medium mb-1 text-zinc-600 dark:text-zinc-400 transition-colors">
                 Suhu Air
               </p>
               {loading ? (
                 <p className="text-2xl font-bold text-zinc-400 dark:text-zinc-600">Loading...</p>
               ) : (
                 <p className={`text-3xl font-bold transition-colors ${
-                  isAutoMode 
-                    ? 'text-zinc-400 dark:text-zinc-600' 
-                    : isSuhuBahaya 
-                    ? 'text-red-500' 
-                    : 'text-zinc-900 dark:text-white'
+                  suhuStatus === "baik" 
+                    ? "text-green-500" 
+                    : suhuStatus === "waspada"
+                    ? "text-yellow-500"
+                    : "text-red-500"
                 }`}>
-                  {isAutoMode ? '--' : sensorData.suhu ? `${sensorData.suhu}°C` : 'N/A'}
+                  {sensorData.suhu ? `${sensorData.suhu}°C` : 'N/A'}
                 </p>
               )}
-              <p className={`text-xs mt-1 transition-colors ${
-                isAutoMode ? 'text-zinc-400 dark:text-zinc-600' : 'text-zinc-500 dark:text-zinc-400'
-              }`}>
+              <p className="text-xs mt-1 text-zinc-500 dark:text-zinc-400">
                 Range normal: 25-32°C
               </p>
             </div>
 
-            {isSuhuBahaya && !isAutoMode && (
-              <div className="mt-3 p-2 bg-red-100 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg">
-                <p className="text-xs text-red-700 dark:text-red-400">
-                  Suhu {sensorData.suhu > 32 ? 'terlalu tinggi' : 'terlalu rendah'}. Aktifkan aerator!
+            {suhuStatus && suhuStatus !== "baik" && (
+              <div className={`mt-3 p-2 rounded-lg ${
+                suhuStatus === "buruk" 
+                  ? "bg-red-100 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20" 
+                  : "bg-yellow-100 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20"
+              }`}>
+                <p className={`text-xs ${
+                  suhuStatus === "buruk" 
+                    ? "text-red-700 dark:text-red-400" 
+                    : "text-yellow-700 dark:text-yellow-400"
+                }`}>
+                  {suhuStatus === "buruk" 
+                    ? `Suhu ${sensorData.suhu > 35 ? 'sangat tinggi' : sensorData.suhu < 20 ? 'sangat rendah' : 'tidak normal'}. ${isAutoMode ? 'Aerator akan aktif otomatis.' : 'Segera periksa kondisi tambak!'}`
+                    : `Suhu ${sensorData.suhu > 32 ? 'tinggi' : 'rendah'}. ${isAutoMode ? 'Monitor kondisi dengan seksama.' : 'Pertimbangkan untuk mengaktifkan aerator.'}`
+                  }
                 </p>
               </div>
             )}
           </div>
 
-          {/* Kekeruhan Card */}
-          <div className={`rounded-xl p-4 transition-all duration-300 border ${
-            isAutoMode 
-              ? 'opacity-40 bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800/50' 
-              : isKekeruhanBahaya 
-              ? 'bg-orange-50 dark:bg-orange-500/5 border-orange-200 dark:border-orange-500/20' 
-              : 'bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800/50 hover:shadow-md'
+          {/* Kekeruhan Card - Always active */}
+          <div className={`rounded-xl p-4 transition-all duration-300 border hover:shadow-md ${
+            kekeruhanStyles.cardBgColor + " " + kekeruhanStyles.cardBorderColor
           } shadow-sm dark:shadow-none`}>
             <div className="flex items-center justify-between mb-3">
               <div className={`p-2 rounded-lg transition-all duration-300 border ${
-                isAutoMode 
-                  ? 'bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700/50' 
-                  : isKekeruhanBahaya 
-                  ? 'bg-orange-100 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20' 
-                  : 'bg-cyan-50 dark:bg-cyan-500/10 border-cyan-200 dark:border-cyan-500/20'
+                kekeruhanStyles.iconBgColor + " " + kekeruhanStyles.iconBorderColor
               }`}>
-                <Droplets className={`size-5 ${
-                  isAutoMode ? 'text-zinc-400' : isKekeruhanBahaya ? 'text-orange-500' : 'text-cyan-500'
-                }`} />
+                <Droplets className={`size-5 ${kekeruhanStyles.iconColor}`} />
               </div>
-              {!isAutoMode && (
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
-                  isKekeruhanBahaya 
-                    ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400' 
-                    : 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400'
-                }`}>
-                  {isKekeruhanBahaya ? 'Keruh' : 'Baik'}
-                </span>
-              )}
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
+                kekeruhanStyles.bgColor + " " + kekeruhanStyles.textColor
+              }`}>
+                {kekeruhanStatus === "baik" ? "Baik" : kekeruhanStatus === "waspada" ? "Waspada" : "Buruk"}
+              </span>
             </div>
             
             <div>
-              <p className={`text-xs font-medium mb-1 transition-colors ${
-                isAutoMode ? 'text-zinc-400 dark:text-zinc-600' : 'text-zinc-600 dark:text-zinc-400'
-              }`}>
+              <p className="text-xs font-medium mb-1 text-zinc-600 dark:text-zinc-400 transition-colors">
                 Kekeruhan Air
               </p>
               {loading ? (
                 <p className="text-2xl font-bold text-zinc-400 dark:text-zinc-600">Loading...</p>
               ) : (
                 <p className={`text-3xl font-bold transition-colors ${
-                  isAutoMode 
-                    ? 'text-zinc-400 dark:text-zinc-600' 
-                    : isKekeruhanBahaya 
-                    ? 'text-orange-500' 
-                    : 'text-zinc-900 dark:text-white'
+                  kekeruhanStatus === "baik" 
+                    ? "text-cyan-500" 
+                    : kekeruhanStatus === "waspada"
+                    ? "text-yellow-500"
+                    : "text-orange-500"
                 }`}>
-                  {isAutoMode ? '--' : sensorData.kekeruhan ? `${sensorData.kekeruhan.toFixed(1)} NTU` : 'N/A'}
+                  {sensorData.kekeruhan ? `${sensorData.kekeruhan.toFixed(1)} NTU` : 'N/A'}
                 </p>
               )}
-              <p className={`text-xs mt-1 transition-colors ${
-                isAutoMode ? 'text-zinc-400 dark:text-zinc-600' : 'text-zinc-500 dark:text-zinc-400'
-              }`}>
-                Range normal: {'<'} 300 NTU
+              <p className="text-xs mt-1 text-zinc-500 dark:text-zinc-400">
+                Range normal: {'<'} 200 NTU
               </p>
             </div>
 
-            {isKekeruhanBahaya && !isAutoMode && (
-              <div className="mt-3 p-2 bg-orange-100 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 rounded-lg">
-                <p className="text-xs text-orange-700 dark:text-orange-400">
-                  Kekeruhan tinggi. Aktifkan aerator untuk sirkulasi air!
+            {kekeruhanStatus && kekeruhanStatus !== "baik" && (
+              <div className={`mt-3 p-2 rounded-lg ${
+                kekeruhanStatus === "buruk" 
+                  ? "bg-orange-100 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20" 
+                  : "bg-yellow-100 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20"
+              }`}>
+                <p className={`text-xs ${
+                  kekeruhanStatus === "buruk" 
+                    ? "text-orange-700 dark:text-orange-400" 
+                    : "text-yellow-700 dark:text-yellow-400"
+                }`}>
+                  {kekeruhanStatus === "buruk" 
+                    ? `Kekeruhan sangat tinggi. ${isAutoMode ? 'Aerator akan aktif otomatis.' : 'Segera aktifkan aerator untuk sirkulasi air!'}`
+                    : `Kekeruhan tinggi. ${isAutoMode ? 'Monitor kondisi dengan seksama.' : 'Pertimbangkan untuk mengaktifkan aerator.'}`
+                  }
                 </p>
               </div>
             )}
@@ -514,13 +802,15 @@ export default function KontrolTambakPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => toggleAllAerators(true)}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-500/30 font-medium transition-colors"
+                  disabled={isProcessing}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-500/30 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Semua ON
                 </button>
                 <button
                   onClick={() => toggleAllAerators(false)}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/30 font-medium transition-colors"
+                  disabled={isProcessing}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/30 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Semua OFF
                 </button>
@@ -576,11 +866,12 @@ export default function KontrolTambakPage() {
                 {!isAutoMode && !loading && !initialLoading && (
                   <button
                     onClick={() => handleAeratorToggle(aerator.id)}
+                    disabled={isProcessing}
                     className={`w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-300 text-center ${
                       aerator.status
                         ? "bg-red-500 text-white hover:bg-red-600 active:scale-95"
                         : "bg-green-500 text-white hover:bg-green-600 active:scale-95"
-                    }`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     {aerator.status ? "Matikan" : "Aktifkan"}
                   </button>
@@ -602,7 +893,9 @@ export default function KontrolTambakPage() {
         <div className="rounded-xl p-3 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 shadow-sm">
           <p className="text-xs text-blue-800 dark:text-blue-400">
             <strong className="font-bold">Mode Otomatis Aktif:</strong> Sistem akan mengatur aerator secara otomatis 
-            berdasarkan pembacaan sensor suhu dan kekeruhan air tambak.
+            berdasarkan pembacaan sensor suhu dan kekeruhan air tambak. Aerator akan mati saat mode otomatis diaktifkan 
+            dan hanya akan hidup jika salah satu parameter menunjukkan status "buruk". Parameter monitoring tetap aktif 
+            untuk memantau kondisi air.
           </p>
         </div>
       )}
