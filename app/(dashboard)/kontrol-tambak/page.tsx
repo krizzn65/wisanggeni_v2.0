@@ -21,18 +21,27 @@ export default function KontrolTambakPage() {
     lastUpdate: null
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // === LOAD STATUS AUTO MODE DARI LOCALSTORAGE ===
   useEffect(() => {
-    const savedMode = localStorage.getItem("autoMode");
-    if (savedMode === "true") {
-      setIsAutoMode(true);
+    try {
+      const savedMode = localStorage.getItem("autoMode");
+      if (savedMode === "true") {
+        setIsAutoMode(true);
+      }
+    } catch (error) {
+      console.error('Error reading from localStorage:', error);
     }
   }, []);
 
   // === SIMPAN STATUS AUTO MODE SETIAP BERUBAH ===
   useEffect(() => {
-    localStorage.setItem("autoMode", isAutoMode);
+    try {
+      localStorage.setItem("autoMode", isAutoMode);
+    } catch (error) {
+      console.error('Error writing to localStorage:', error);
+    }
   }, [isAutoMode]);
 
   // === FETCH DATA SENSOR ===
@@ -47,9 +56,13 @@ export default function KontrolTambakPage() {
           kekeruhan: data.data.kekeruhan,
           lastUpdate: new Date(data.data.updated_at)
         });
+        setError(null);
+      } else {
+        setError('Failed to fetch sensor data');
       }
     } catch (error) {
       console.error('Error fetching sensor data:', error);
+      setError('Error fetching sensor data');
     } finally {
       setLoading(false);
     }
@@ -70,6 +83,7 @@ export default function KontrolTambakPage() {
       const newStatus = !currentAerator.status;
       const previousAerators = [...aerators];
       
+      // Optimistic update
       const updatedAerators = aerators.map(aerator =>
         aerator.id === aeratorId
           ? { ...aerator, status: newStatus }
@@ -78,15 +92,26 @@ export default function KontrolTambakPage() {
       setAerators(updatedAerators);
       
       try {
+        console.log('Sending API request', { aeratorId, status: newStatus });
         const response = await fetch('/api/aerator/toggle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ aeratorId, status: newStatus }),
         });
-        if (!response.ok) setAerators(previousAerators);
+        
+        const data = await response.json();
+        console.log('API response', data);
+        
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'API request failed');
+        }
+        
+        setError(null);
       } catch (error) {
-        setAerators(previousAerators);
         console.error('Error toggling aerator:', error);
+        setError(`Failed to toggle aerator: ${error.message}`);
+        // Revert the optimistic update
+        setAerators(previousAerators);
       }
     }
   };
@@ -98,16 +123,57 @@ export default function KontrolTambakPage() {
       setAerators(updatedAerators);
       
       try {
+        console.log('Sending toggle all request', { status });
         const response = await fetch('/api/aerator/toggle-all', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status }),
         });
-        if (!response.ok) setAerators(previousAerators);
+        
+        const data = await response.json();
+        console.log('Toggle all response', data);
+        
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'API request failed');
+        }
+        
+        setError(null);
       } catch (error) {
-        setAerators(previousAerators);
         console.error('Error toggling all aerators:', error);
+        setError(`Failed to toggle all aerators: ${error.message}`);
+        setAerators(previousAerators);
       }
+    }
+  };
+
+  const handleAutoModeToggle = async () => {
+    const newMode = !isAutoMode;
+    setIsAutoMode(newMode);
+
+    try {
+      const response = await fetch('/api/aerator/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isAutoMode: newMode,
+          activeCount: newMode ? 8 : aerators.filter(a => a.status).length,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update mode');
+      }
+
+      // If switching to auto mode, turn all aerators on
+      if (newMode) {
+        toggleAllAerators(true);
+      }
+    } catch (error) {
+      console.error('Error updating auto mode:', error);
+      setError(`Failed to update mode: ${error.message}`);
+      // Revert the mode change
+      setIsAutoMode(!newMode);
     }
   };
 
@@ -134,6 +200,23 @@ export default function KontrolTambakPage() {
           Atur aerator pada tambak secara manual atau otomatis
         </p>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="rounded-xl p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 shadow-sm">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-red-700 dark:text-red-400 mb-1">
+                Error
+              </p>
+              <p className="text-sm text-red-600 dark:text-red-400/80">
+                {error}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Peringatan Global */}
       {hasWarning && !isAutoMode && (
@@ -180,21 +263,7 @@ export default function KontrolTambakPage() {
           </div>
           
           <button
-            onClick={() => {
-              const newMode = !isAutoMode;
-              setIsAutoMode(newMode);
-
-              fetch('/api/aerator/status', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  isAutoMode: newMode,
-                  activeCount: newMode ? 8 : aerators.filter(a => a.status).length,
-                }),
-              });
-
-              if (newMode) toggleAllAerators(true);
-            }}
+            onClick={handleAutoModeToggle}
             className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 ${
               isAutoMode ? 'bg-blue-500' : 'bg-zinc-300 dark:bg-zinc-700'
             }`}
@@ -207,8 +276,6 @@ export default function KontrolTambakPage() {
           </button>
         </div>
       </div>
-
-      
 
       {/* Parameter Monitoring */}
       <div className="space-y-3">
@@ -388,72 +455,72 @@ export default function KontrolTambakPage() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        {aerators.map((aerator) => (
-          <div
-            key={aerator.id}
-            className={`rounded-xl p-5 transition-all duration-300 border ${
-              isAutoMode
-                ? "opacity-50 cursor-not-allowed"
-                : "cursor-pointer"
-            } ${
-              aerator.status
-                ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 shadow-md"
-                : "bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800/50 shadow-sm"
-            } dark:shadow-none`}
-          >
-            <div className="flex flex-col items-center gap-3">
-              <div
-                className={`p-3 rounded-xl transition-all duration-300 border ${
-                  aerator.status
-                    ? "bg-green-100 dark:bg-green-500/10 border-green-200 dark:border-green-500/20"
-                    : "bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700/50"
-                }`}
-              >
-                <Waves
-                  className={`size-7 ${
-                    aerator.status ? "text-green-500" : "text-zinc-400"
-                  }`}
-                />
-              </div>
-
-              <div className="text-center">
-                <p className="text-sm font-bold text-zinc-900 dark:text-white transition-colors mb-1">
-                  {aerator.name}
-                </p>
-                <p
-                  className={`text-sm font-medium ${
+          {aerators.map((aerator) => (
+            <div
+              key={aerator.id}
+              className={`rounded-xl p-5 transition-all duration-300 border ${
+                isAutoMode
+                  ? "opacity-50 cursor-not-allowed"
+                  : "cursor-pointer"
+              } ${
+                aerator.status
+                  ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 shadow-md"
+                  : "bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800/50 shadow-sm"
+              } dark:shadow-none`}
+            >
+              <div className="flex flex-col items-center gap-3">
+                <div
+                  className={`p-3 rounded-xl transition-all duration-300 border ${
                     aerator.status
-                      ? "text-green-600 dark:text-green-400"
-                      : "text-zinc-500 dark:text-zinc-400"
+                      ? "bg-green-100 dark:bg-green-500/10 border-green-200 dark:border-green-500/20"
+                      : "bg-zinc-100 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700/50"
                   }`}
                 >
-                  {aerator.status ? "Aktif" : "Mati"}
-                </p>
-              </div>
-
-              {!isAutoMode && !loading && (
-                <button
-                  onClick={() => handleAeratorToggle(aerator.id)}
-                  className={`w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-300 text-center ${
-                    aerator.status
-                      ? "bg-red-500 text-white hover:bg-red-600 active:scale-95"
-                      : "bg-green-500 text-white hover:bg-green-600 active:scale-95"
-                  }`}
-                >
-                  {aerator.status ? "Matikan" : "Aktifkan"}
-                </button>
-              )}
-
-              {(isAutoMode || loading) && (
-                <div className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-300 text-center bg-zinc-200 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-600">
-                  {loading ? "Loading..." : "Auto"}
+                  <Waves
+                    className={`size-7 ${
+                      aerator.status ? "text-green-500" : "text-zinc-400"
+                    }`}
+                  />
                 </div>
-              )}
+
+                <div className="text-center">
+                  <p className="text-sm font-bold text-zinc-900 dark:text-white transition-colors mb-1">
+                    {aerator.name}
+                  </p>
+                  <p
+                    className={`text-sm font-medium ${
+                      aerator.status
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-zinc-500 dark:text-zinc-400"
+                    }`}
+                  >
+                    {aerator.status ? "Aktif" : "Mati"}
+                  </p>
+                </div>
+
+                {!isAutoMode && !loading && (
+                  <button
+                    onClick={() => handleAeratorToggle(aerator.id)}
+                    className={`w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-300 text-center ${
+                      aerator.status
+                        ? "bg-red-500 text-white hover:bg-red-600 active:scale-95"
+                        : "bg-green-500 text-white hover:bg-green-600 active:scale-95"
+                    }`}
+                  >
+                    {aerator.status ? "Matikan" : "Aktifkan"}
+                  </button>
+                )}
+
+                {(isAutoMode || loading) && (
+                  <div className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-300 text-center bg-zinc-200 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-600">
+                    {loading ? "Loading..." : "Auto"}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
 
       {/* Info Mode Otomatis */}
       {isAutoMode && (

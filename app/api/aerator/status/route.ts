@@ -1,24 +1,59 @@
-import { NextResponse } from "next/server";
-import { broadcast } from "../stream/route"; // panggil broadcast
+import { NextRequest, NextResponse } from 'next/server';
 
-let aeratorStatus = {
-  isAutoMode: false,
-  activeCount: 0,
-};
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { isAutoMode, activeCount } = body;
 
-export async function GET() {
-  return NextResponse.json(aeratorStatus);
+    // Validate input
+    if (typeof isAutoMode !== 'boolean' || typeof activeCount !== 'number') {
+      return NextResponse.json(
+        { success: false, message: 'Invalid input. isAutoMode (boolean) and activeCount (number) are required.' },
+        { status: 400 }
+      );
+    }
+
+    // Simulate processing delay
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Log the action
+    console.log(`Aerator mode changed to: ${isAutoMode ? 'Automatic' : 'Manual'}`);
+    console.log(`Active aerators: ${activeCount}`);
+    
+    return NextResponse.json({
+      success: true,
+      message: `Aerator mode set to ${isAutoMode ? 'Automatic' : 'Manual'}`,
+      data: {
+        isAutoMode,
+        activeCount,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error setting aerator status:', error);
+    return NextResponse.json(
+      { success: false, message: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 }
 
-export async function POST(req: Request) {
-  const body = await req.json();
-  aeratorStatus = {
-    isAutoMode: body.isAutoMode ?? aeratorStatus.isAutoMode,
-    activeCount: body.activeCount ?? aeratorStatus.activeCount,
-  };
-
-  // broadcast ke semua dashboard
-  broadcast(aeratorStatus);
-
-  return NextResponse.json({ success: true, data: aeratorStatus });
+// Handle GET requests to get current status
+export async function GET() {
+  try {
+    return NextResponse.json({
+      success: true,
+      data: {
+        message: "Current status endpoint",
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Error getting aerator status:', error);
+    return NextResponse.json(
+      { success: false, message: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 }
