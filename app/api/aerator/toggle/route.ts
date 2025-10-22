@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readAeratorStates, writeAeratorStates } from '@/lib/aeratorStorage';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,10 +22,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Read current states
+    let aerators = readAeratorStates();
+    
+    // Find and update the aerator
+    const aeratorIndex = aerators.findIndex(a => a.id === aeratorId);
+    if (aeratorIndex === -1) {
+      return NextResponse.json(
+        { success: false, message: `Aerator with ID ${aeratorId} not found` },
+        { status: 404 }
+      );
+    }
+    
+    // Update the status
+    aerators[aeratorIndex].status = status;
+    
+    // Save to file
+    const saved = writeAeratorStates(aerators);
+    if (!saved) {
+      return NextResponse.json(
+        { success: false, message: 'Failed to save aerator state' },
+        { status: 500 }
+      );
+    }
+    
     // Simulate hardware communication delay
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Log the action
     console.log(`Aerator ${aeratorId} turned ${status ? 'ON' : 'OFF'}`);
     
     return NextResponse.json({
@@ -33,6 +57,7 @@ export async function POST(request: NextRequest) {
       data: {
         aeratorId,
         status,
+        allStates: aerators,
         timestamp: new Date().toISOString()
       }
     });
@@ -46,10 +71,21 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Handle other HTTP methods
 export async function GET() {
-  return NextResponse.json(
-    { success: false, message: 'Method not allowed' },
-    { status: 405 }
-  );
+  try {
+    const aerators = readAeratorStates();
+    return NextResponse.json({
+      success: true,
+      data: {
+        aerators,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Error getting aerator states:', error);
+    return NextResponse.json(
+      { success: false, message: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readAeratorStates, writeAeratorStates } from '@/lib/aeratorStorage';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,10 +14,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Read current states
+    let aerators = readAeratorStates();
+    
+    // Update all aerators
+    aerators = aerators.map(aerator => ({ ...aerator, status }));
+    
+    // Save to file
+    const saved = writeAeratorStates(aerators);
+    if (!saved) {
+      return NextResponse.json(
+        { success: false, message: 'Failed to save aerator states' },
+        { status: 500 }
+      );
+    }
+    
     // Simulate hardware communication delay
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Log the action
     console.log(`All aerators turned ${status ? 'ON' : 'OFF'}`);
     
     return NextResponse.json({
@@ -24,7 +39,7 @@ export async function POST(request: NextRequest) {
       message: `All aerators turned ${status ? 'ON' : 'OFF'}`,
       data: {
         status,
-        count: 8,
+        allStates: aerators,
         timestamp: new Date().toISOString()
       }
     });
@@ -36,12 +51,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// Handle other HTTP methods
-export async function GET() {
-  return NextResponse.json(
-    { success: false, message: 'Method not allowed' },
-    { status: 405 }
-  );
 }

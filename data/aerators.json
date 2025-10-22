@@ -1,0 +1,45 @@
+{
+  "aerators": [
+    {
+      "id": 1,
+      "name": "Aerator 1",
+      "status": true
+    },
+    {
+      "id": 2,
+      "name": "Aerator 2",
+      "status": true
+    },
+    {
+      "id": 3,
+      "name": "Aerator 3",
+      "status": true
+    },
+    {
+      "id": 4,
+      "name": "Aerator 4",
+      "status": true
+    },
+    {
+      "id": 5,
+      "name": "Aerator 5",
+      "status": true
+    },
+    {
+      "id": 6,
+      "name": "Aerator 6",
+      "status": true
+    },
+    {
+      "id": 7,
+      "name": "Aerator 7",
+      "status": true
+    },
+    {
+      "id": 8,
+      "name": "Aerator 8",
+      "status": true
+    }
+  ],
+  "lastUpdated": "2025-10-22T16:48:33.204Z"
+}

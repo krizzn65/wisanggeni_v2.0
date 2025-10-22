@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readAeratorStates, writeAeratorStates } from '@/lib/aeratorStorage';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,10 +14,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Read current states
+    let aerators = readAeratorStates();
+    
+    // Update aerators based on mode
+    if (isAutoMode) {
+      // In auto mode, turn all aerators on
+      aerators = aerators.map(aerator => ({ ...aerator, status: true }));
+    } else {
+      // In manual mode, set the specified number of aerators to active
+      aerators = aerators.map((aerator, index) => ({
+        ...aerator,
+        status: index < activeCount
+      }));
+    }
+    
+    // Save to file
+    const saved = writeAeratorStates(aerators);
+    if (!saved) {
+      return NextResponse.json(
+        { success: false, message: 'Failed to save aerator states' },
+        { status: 500 }
+      );
+    }
+    
     // Simulate processing delay
     await new Promise(resolve => setTimeout(resolve, 200));
     
-    // Log the action
     console.log(`Aerator mode changed to: ${isAutoMode ? 'Automatic' : 'Manual'}`);
     console.log(`Active aerators: ${activeCount}`);
     
@@ -26,6 +50,7 @@ export async function POST(request: NextRequest) {
       data: {
         isAutoMode,
         activeCount,
+        allStates: aerators,
         timestamp: new Date().toISOString()
       }
     });
@@ -39,13 +64,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Handle GET requests to get current status
 export async function GET() {
   try {
+    const aerators = readAeratorStates();
     return NextResponse.json({
       success: true,
       data: {
-        message: "Current status endpoint",
+        aerators,
         timestamp: new Date().toISOString()
       }
     });

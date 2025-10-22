@@ -3,18 +3,21 @@
 import { useState, useEffect } from 'react';
 import { AlertTriangle, Droplets, Thermometer, Zap, Waves } from 'lucide-react';
 
+// Default aerator states
+const defaultAerators = [
+  { id: 1, name: 'Aerator 1', status: false },
+  { id: 2, name: 'Aerator 2', status: false },
+  { id: 3, name: 'Aerator 3', status: false },
+  { id: 4, name: 'Aerator 4', status: false },
+  { id: 5, name: 'Aerator 5', status: false },
+  { id: 6, name: 'Aerator 6', status: false },
+  { id: 7, name: 'Aerator 7', status: false },
+  { id: 8, name: 'Aerator 8', status: false },
+];
+
 export default function KontrolTambakPage() {
   const [isAutoMode, setIsAutoMode] = useState(false);
-  const [aerators, setAerators] = useState([
-    { id: 1, name: 'Aerator 1', status: false },
-    { id: 2, name: 'Aerator 2', status: false },
-    { id: 3, name: 'Aerator 3', status: false },
-    { id: 4, name: 'Aerator 4', status: false },
-    { id: 5, name: 'Aerator 5', status: false },
-    { id: 6, name: 'Aerator 6', status: false },
-    { id: 7, name: 'Aerator 7', status: false },
-    { id: 8, name: 'Aerator 8', status: false },
-  ]);
+  const [aerators, setAerators] = useState(defaultAerators);
   const [sensorData, setSensorData] = useState({
     suhu: null,
     kekeruhan: null,
@@ -22,6 +25,43 @@ export default function KontrolTambakPage() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  // === LOAD AERATOR STATES FROM SERVER ===
+  const loadAeratorStates = async () => {
+    try {
+      const response = await fetch('/api/aerator/status');
+      const data = await response.json();
+      
+      if (data.success && data.data.aerators) {
+        setAerators(data.data.aerators);
+        // Also save to localStorage as backup
+        localStorage.setItem('aeratorStates', JSON.stringify(data.data.aerators));
+      }
+    } catch (error) {
+      console.error('Error loading aerator states:', error);
+      // Try to load from localStorage as fallback
+      try {
+        const savedStates = localStorage.getItem('aeratorStates');
+        if (savedStates) {
+          setAerators(JSON.parse(savedStates));
+        }
+      } catch (localStorageError) {
+        console.error('Error loading from localStorage:', localStorageError);
+      }
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  // === SAVE AERATOR STATES TO LOCALSTORAGE ===
+  const saveAeratorStates = (states) => {
+    try {
+      localStorage.setItem('aeratorStates', JSON.stringify(states));
+    } catch (error) {
+      console.error('Error saving to localStorage:', error);
+    }
+  };
 
   // === LOAD STATUS AUTO MODE DARI LOCALSTORAGE ===
   useEffect(() => {
@@ -43,6 +83,11 @@ export default function KontrolTambakPage() {
       console.error('Error writing to localStorage:', error);
     }
   }, [isAutoMode]);
+
+  // === INITIAL LOAD ===
+  useEffect(() => {
+    loadAeratorStates();
+  }, []);
 
   // === FETCH DATA SENSOR ===
   const fetchSensorData = async () => {
@@ -69,16 +114,18 @@ export default function KontrolTambakPage() {
   };
 
   useEffect(() => {
-    fetchSensorData();
-    const interval = setInterval(fetchSensorData, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    if (!initialLoading) {
+      fetchSensorData();
+      const interval = setInterval(fetchSensorData, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [initialLoading]);
 
   const isSuhuBahaya = sensorData.suhu && (sensorData.suhu > 32 || sensorData.suhu < 25);
   const isKekeruhanBahaya = sensorData.kekeruhan && sensorData.kekeruhan > 300;
 
   const handleAeratorToggle = async (aeratorId) => {
-    if (!isAutoMode && !loading) {
+    if (!isAutoMode && !loading && !initialLoading) {
       const currentAerator = aerators.find(a => a.id === aeratorId);
       const newStatus = !currentAerator.status;
       const previousAerators = [...aerators];
@@ -90,6 +137,7 @@ export default function KontrolTambakPage() {
           : aerator
       );
       setAerators(updatedAerators);
+      saveAeratorStates(updatedAerators);
       
       try {
         console.log('Sending API request', { aeratorId, status: newStatus });
@@ -106,21 +154,29 @@ export default function KontrolTambakPage() {
           throw new Error(data.message || 'API request failed');
         }
         
+        // Update with server response (in case there are changes)
+        if (data.data.allStates) {
+          setAerators(data.data.allStates);
+          saveAeratorStates(data.data.allStates);
+        }
+        
         setError(null);
       } catch (error) {
         console.error('Error toggling aerator:', error);
         setError(`Failed to toggle aerator: ${error.message}`);
         // Revert the optimistic update
         setAerators(previousAerators);
+        saveAeratorStates(previousAerators);
       }
     }
   };
 
   const toggleAllAerators = async (status) => {
-    if (!isAutoMode && !loading) {
+    if (!isAutoMode && !loading && !initialLoading) {
       const previousAerators = [...aerators];
       const updatedAerators = aerators.map(aerator => ({ ...aerator, status }));
       setAerators(updatedAerators);
+      saveAeratorStates(updatedAerators);
       
       try {
         console.log('Sending toggle all request', { status });
@@ -137,11 +193,18 @@ export default function KontrolTambakPage() {
           throw new Error(data.message || 'API request failed');
         }
         
+        // Update with server response
+        if (data.data.allStates) {
+          setAerators(data.data.allStates);
+          saveAeratorStates(data.data.allStates);
+        }
+        
         setError(null);
       } catch (error) {
         console.error('Error toggling all aerators:', error);
         setError(`Failed to toggle all aerators: ${error.message}`);
         setAerators(previousAerators);
+        saveAeratorStates(previousAerators);
       }
     }
   };
@@ -165,9 +228,10 @@ export default function KontrolTambakPage() {
         throw new Error(data.message || 'Failed to update mode');
       }
 
-      // If switching to auto mode, turn all aerators on
-      if (newMode) {
-        toggleAllAerators(true);
+      // Update with server response
+      if (data.data.allStates) {
+        setAerators(data.data.allStates);
+        saveAeratorStates(data.data.allStates);
       }
     } catch (error) {
       console.error('Error updating auto mode:', error);
@@ -188,6 +252,17 @@ export default function KontrolTambakPage() {
 
   const activeCount = aerators.filter(a => a.status).length;
   const hasWarning = isSuhuBahaya || isKekeruhanBahaya;
+
+  if (initialLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Loading aerator states...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -498,7 +573,7 @@ export default function KontrolTambakPage() {
                   </p>
                 </div>
 
-                {!isAutoMode && !loading && (
+                {!isAutoMode && !loading && !initialLoading && (
                   <button
                     onClick={() => handleAeratorToggle(aerator.id)}
                     className={`w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-300 text-center ${
@@ -511,9 +586,9 @@ export default function KontrolTambakPage() {
                   </button>
                 )}
 
-                {(isAutoMode || loading) && (
+                {(isAutoMode || loading || initialLoading) && (
                   <div className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-300 text-center bg-zinc-200 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-600">
-                    {loading ? "Loading..." : "Auto"}
+                    {initialLoading ? "Loading..." : loading ? "Updating..." : "Auto"}
                   </div>
                 )}
               </div>
