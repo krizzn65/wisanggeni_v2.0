@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { AlertTriangle, Droplets, Thermometer, Zap, Waves } from 'lucide-react';
+import { AlertTriangle, Droplets, Thermometer, Zap, Waves, Info, Bubbles} from 'lucide-react';
 
 // Default aerator states
 const defaultAerators = [
@@ -72,8 +72,8 @@ function getTemperatureStatus(suhu: number | null) {
 // Helper function to determine turbidity status
 function getTurbidityStatus(kekeruhan: number | null) {
   if (!kekeruhan) return null;
-  if (kekeruhan <= 200) return "baik";
-  if (kekeruhan > 200 && kekeruhan <= 300) return "waspada";
+  if (kekeruhan >= 20 && kekeruhan <= 50) return "baik";
+  if (kekeruhan < 20 || (kekeruhan > 50 && kekeruhan <= 60)) return "waspada";
   return "buruk";
 }
 
@@ -93,6 +93,7 @@ export default function KontrolTambakPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [autoModeInitialized, setAutoModeInitialized] = useState(false);
   const [restoringState, setRestoringState] = useState(false);
+  const [aeratorStatus, setAeratorStatus] = useState("Aerator Off");
   const autoModeRef = useRef(false);
   const aeratorsRef = useRef(defaultAerators);
   const lastAutoCheckRef = useRef({});
@@ -128,6 +129,11 @@ export default function KontrolTambakPage() {
         } else {
           setAerators(data.data.aerators);
           localStorage.setItem('aeratorStates', JSON.stringify(data.data.aerators));
+        }
+        
+        // Update aerator status indicator
+        if (data.data.status) {
+          setAeratorStatus(data.data.status);
         }
       }
     } catch (error) {
@@ -224,6 +230,25 @@ export default function KontrolTambakPage() {
     }
   }, [initialLoading]);
 
+  // === UPDATE AERATOR STATUS INDICATOR ===
+  useEffect(() => {
+    const activeCount = aerators.filter(a => a.status).length;
+    
+    if (isAutoMode) {
+      if (activeCount > 0) {
+        setAeratorStatus("Aerator Mode otomatis (Aerator On)");
+      } else {
+        setAeratorStatus("Aerator Mode otomatis (Aerator Off)");
+      }
+    } else {
+      if (activeCount > 0) {
+        setAeratorStatus(`Aerator On ${activeCount}/8`);
+      } else {
+        setAeratorStatus("Aerator Off");
+      }
+    }
+  }, [isAutoMode, aerators]);
+
   // === RESTORE AUTO MODE STATE ===
   useEffect(() => {
     if (isAutoMode && !initialLoading && !autoModeInitialized && !restoringState) {
@@ -275,39 +300,40 @@ export default function KontrolTambakPage() {
       hasBadParameter,
       autoActivated,
       anyOn: aerators.some(a => a.status),
-      autoModeInitialized
+      autoModeInitialized,
+      sensorData: {
+        suhu: sensorData.suhu,
+        kekeruhan: sensorData.kekeruhan
+      }
     });
 
     if (hasBadParameter) {
-      // Turn on all aerators if they're not already on
-      const allOff = aerators.every(a => !a.status);
-      if (allOff) {
-        console.log('Auto activating aerators due to bad parameters');
-        setAutoActivated(true);
-        
-        // Set the reason for activation
-        if (suhuStatus === "buruk" && kekeruhanStatus === "buruk") {
-          setAutoActivationReason("suhu dan kekeruhan air");
-        } else if (suhuStatus === "buruk") {
-          setAutoActivationReason("suhu air");
-        } else {
-          setAutoActivationReason("kekeruhan air");
-        }
-        
-        // Turn on all aerators
-        const updatedAerators = aerators.map(aerator => ({ ...aerator, status: true }));
-        setAerators(updatedAerators);
-        saveAeratorStates(updatedAerators);
-        
-        // Sync with server
-        fetch('/api/aerator/toggle-all', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: true }),
-        }).catch(error => {
-          console.error('Error syncing with server:', error);
-        });
+      // Always turn on all aerators if any parameter is "buruk"
+      console.log('Auto activating aerators due to bad parameters');
+      setAutoActivated(true);
+      
+      // Set the reason for activation
+      if (suhuStatus === "buruk" && kekeruhanStatus === "buruk") {
+        setAutoActivationReason("suhu dan kekeruhan air");
+      } else if (suhuStatus === "buruk") {
+        setAutoActivationReason("suhu air");
+      } else {
+        setAutoActivationReason("kekeruhan air");
       }
+      
+      // Turn on all aerators
+      const updatedAerators = aerators.map(aerator => ({ ...aerator, status: true }));
+      setAerators(updatedAerators);
+      saveAeratorStates(updatedAerators);
+      
+      // Sync with server
+      fetch('/api/aerator/toggle-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: true }),
+      }).catch(error => {
+        console.error('Error syncing with server:', error);
+      });
     } else {
       // Turn off all aerators if they were auto-activated and parameters are now normal
       const anyOn = aerators.some(a => a.status);
@@ -537,6 +563,22 @@ export default function KontrolTambakPage() {
         </p>
       </div>
 
+      {/* Aerator Status Indicator */}
+      <div className="rounded-xl border p-4 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Waves className="text-blue-500 w-6 h-6" />
+          <p className="font-semibold text-blue-700 dark:text-blue-400 text-base">
+            {aeratorStatus}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Info className="text-blue-500 w-4 h-4" />
+          <span className="text-xs text-blue-600 dark:text-blue-400">
+            Status sinkron dengan dashboard
+          </span>
+        </div>
+      </div>
+
       {/* Error Display */}
       {error && (
         <div className="rounded-xl p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 shadow-sm">
@@ -735,7 +777,7 @@ export default function KontrolTambakPage() {
               <div className={`p-2 rounded-lg transition-all duration-300 border ${
                 kekeruhanStyles.iconBgColor + " " + kekeruhanStyles.iconBorderColor
               }`}>
-                <Droplets className={`size-5 ${kekeruhanStyles.iconColor}`} />
+                <Bubbles className={`size-5 ${kekeruhanStyles.iconColor}`} />
               </div>
               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
                 kekeruhanStyles.bgColor + " " + kekeruhanStyles.textColor
@@ -762,7 +804,7 @@ export default function KontrolTambakPage() {
                 </p>
               )}
               <p className="text-xs mt-1 text-zinc-500 dark:text-zinc-400">
-                Range normal: {'<'} 200 NTU
+                Range normal: 20-50 NTU
               </p>
             </div>
 

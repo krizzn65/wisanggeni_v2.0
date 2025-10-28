@@ -1,6 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readAeratorStates, writeAeratorStates } from '@/lib/aeratorStorage';
 
+export async function GET(request: NextRequest) {
+  try {
+    const aerators = readAeratorStates();
+    const activeCount = aerators.filter(a => a.status).length;
+    
+    // Default to manual mode for GET requests
+    const isAutoMode = false;
+    
+    return NextResponse.json({
+      success: true,
+      data: {
+        aerators,
+        activeCount,
+        isAutoMode,
+        status: isAutoMode 
+          ? (activeCount > 0 
+              ? "Aerator Mode otomatis (Aerator On)" 
+              : "Aerator Mode otomatis (Aerator Off)")
+          : (activeCount > 0 
+              ? `Aerator On ${activeCount}/8` 
+              : "Aerator Off")
+      }
+    });
+  } catch (error) {
+    console.error('Error getting aerator status:', error);
+    return NextResponse.json(
+      { success: false, message: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -50,32 +82,18 @@ export async function POST(request: NextRequest) {
       data: {
         isAutoMode,
         activeCount,
-        allStates: aerators,
-        timestamp: new Date().toISOString()
+        aerators,
+        status: isAutoMode 
+          ? (activeCount > 0 
+              ? "Aerator Mode otomatis (Aerator On)" 
+              : "Aerator Mode otomatis (Aerator Off)")
+          : (activeCount > 0 
+              ? `Aerator On ${activeCount}/8` 
+              : "Aerator Off")
       }
     });
-    
   } catch (error) {
     console.error('Error setting aerator status:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function GET() {
-  try {
-    const aerators = readAeratorStates();
-    return NextResponse.json({
-      success: true,
-      data: {
-        aerators,
-        timestamp: new Date().toISOString()
-      }
-    });
-  } catch (error) {
-    console.error('Error getting aerator status:', error);
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }

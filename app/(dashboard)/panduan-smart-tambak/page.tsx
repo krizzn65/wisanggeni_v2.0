@@ -17,6 +17,8 @@ import {
   Calculator,
   Lightbulb,
   HelpCircle,
+  Bubbles,
+  TestTube
 } from "lucide-react"
 
 export default function PanduanSmartTambakPage() {
@@ -28,51 +30,37 @@ export default function PanduanSmartTambakPage() {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
-      },
+      transition: { staggerChildren: 0.1, delayChildren: 0.2 },
     },
   }
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5, ease: "easeOut" },
-    },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
   }
 
   const headerVariants = {
     hidden: { opacity: 0, scale: 0.8 },
-    visible: {
-      opacity: 1,
-      scale: 1,
-      transition: { duration: 0.6, ease: "easeOut" },
-    },
+    visible: { opacity: 1, scale: 1, transition: { duration: 0.6, ease: "easeOut" } },
   }
 
   const cardHoverVariants = {
     hover: {
       y: -8,
-      boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+      boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
       transition: { duration: 0.3 },
     },
   }
 
   const expandVariants = {
     collapsed: { opacity: 0, height: 0 },
-    expanded: {
-      opacity: 1,
-      height: "auto",
-      transition: { duration: 0.3, ease: "easeInOut" },
-    },
+    expanded: { opacity: 1, height: "auto", transition: { duration: 0.3, ease: "easeInOut" } },
   }
 
   return (
     <div className="min-h-screen bg-[#09090B] text-foreground p-6">
       <div className="max-w-5xl mx-auto">
+        {/* Header */}
         <motion.div className="mb-12" variants={containerVariants} initial="hidden" animate="visible">
           <motion.div className="flex items-center gap-3 mb-4" variants={itemVariants}>
             <motion.div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg">
@@ -87,6 +75,7 @@ export default function PanduanSmartTambakPage() {
           </motion.p>
         </motion.div>
 
+        {/* Tentang Udang Vaname */}
         <motion.div
           className="mb-12"
           variants={itemVariants}
@@ -100,7 +89,7 @@ export default function PanduanSmartTambakPage() {
             transition={{ duration: 0.3 }}
           >
             <div className="flex items-start gap-4">
-              <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}>
+              <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 2, repeat: Infinity }}>
                 <Shrimp className="w-12 h-12 text-white" />
               </motion.div>
               <div>
@@ -115,6 +104,7 @@ export default function PanduanSmartTambakPage() {
           </motion.div>
         </motion.div>
 
+        {/* Parameter Kualitas Air Optimal */}
         <motion.div className="mb-12" initial="hidden" animate="visible" variants={containerVariants}>
           <motion.h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2" variants={itemVariants}>
             <Droplets className="w-6 h-6 text-blue-400" />
@@ -124,7 +114,7 @@ export default function PanduanSmartTambakPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               {
-                icon: Droplets,
+                icon: TestTube,
                 title: "pH Air",
                 desc: "Tingkat keasaman/kebasaan air",
                 range: "7.5 - 8.5",
@@ -145,6 +135,19 @@ export default function PanduanSmartTambakPage() {
                 ],
                 solution:
                   "Aktifkan aerator untuk sirkulasi air dan pertukaran panas. Gunakan shading net saat suhu terlalu tinggi.",
+              },
+              {
+                icon: Bubbles        ,
+                title: "Kekeruhan Air",
+                desc: "Kejernihan air diukur dari jumlah partikel tersuspensi (NTU)",
+                range: "20 - 50 NTU",
+                color: "cyan",
+                issues: [
+                  "Kekeruhan < 20 NTU: Plankton rendah, produktivitas tambak menurun",
+                  "Kekeruhan > 50 NTU: Sinar matahari sulit menembus, oksigen terlarut menurun",
+                ],
+                solution:
+                  "Atur dosis pupuk organik/inorganik untuk menjaga keseimbangan plankton. Lakukan pergantian air sebagian bila terlalu keruh.",
               },
             ].map((param, idx) => (
               <motion.div
