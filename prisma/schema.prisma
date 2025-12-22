@@ -94,6 +94,7 @@ model sensors {
   kualitas   Float?
   created_at DateTime? @db.DateTime(0)
   updated_at DateTime? @db.DateTime(0)
+  @@map("avgsensors")
 }
 
 model sessions {
