@@ -1,20 +1,45 @@
 import { NextRequest } from "next/server";
+import { addClient, removeClient } from "@/lib/aeratorBroadcast";
 
-let clients: Response[] = [];
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
+  const encoder = new TextEncoder();
+  
+  let clientRef: { write: (data: string) => void; close: () => void } | null = null;
+
   const stream = new ReadableStream({
     start(controller) {
-      const encoder = new TextEncoder();
-      clients.push({
-        write: (data: string) => controller.enqueue(encoder.encode(data)),
-        close: () => controller.close(),
-      });
+      clientRef = {
+        write: (data: string) => {
+          try {
+            controller.enqueue(encoder.encode(data));
+          } catch (e) {
+            // Stream mungkin sudah closed
+          }
+        },
+        close: () => {
+          try {
+            controller.close();
+          } catch (e) {
+            // Already closed
+          }
+        },
+      };
+      addClient(clientRef);
+    },
+    cancel() {
+      if (clientRef) {
+        removeClient(clientRef);
+      }
     },
   });
 
   req.signal.addEventListener("abort", () => {
-    clients = clients.filter((client) => client.close !== req);
+    if (clientRef) {
+      removeClient(clientRef);
+    }
   });
 
   return new Response(stream, {
@@ -24,11 +49,4 @@ export async function GET(req: NextRequest) {
       Connection: "keep-alive",
     },
   });
-}
-
-// Fungsi ini nanti dipanggil dari /api/aerator/status POST
-export function broadcast(data: any) {
-  for (const client of clients) {
-    client.write(`data: ${JSON.stringify(data)}\n\n`);
-  }
 }
