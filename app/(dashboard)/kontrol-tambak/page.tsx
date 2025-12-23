@@ -3,8 +3,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Droplets, Thermometer, Zap, Waves, Info, Bubbles} from 'lucide-react';
 
+// Types
+interface Aerator {
+  id: number;
+  name: string;
+  status: boolean;
+}
+
+interface SensorData {
+  suhu: number | null;
+  kekeruhan: number | null;
+  lastUpdate: Date | null;
+}
+
 // Default aerator states
-const defaultAerators = [
+const defaultAerators: Aerator[] = [
   { id: 1, name: 'Aerator 1', status: false },
   { id: 2, name: 'Aerator 2', status: false },
   { id: 3, name: 'Aerator 3', status: false },
@@ -79,14 +92,14 @@ function getTurbidityStatus(kekeruhan: number | null) {
 
 export default function KontrolTambakPage() {
   const [isAutoMode, setIsAutoMode] = useState(false);
-  const [aerators, setAerators] = useState(defaultAerators);
-  const [sensorData, setSensorData] = useState({
+  const [aerators, setAerators] = useState<Aerator[]>(defaultAerators);
+  const [sensorData, setSensorData] = useState<SensorData>({
     suhu: null,
     kekeruhan: null,
     lastUpdate: null
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [autoActivated, setAutoActivated] = useState(false);
   const [autoActivationReason, setAutoActivationReason] = useState("");
@@ -95,8 +108,8 @@ export default function KontrolTambakPage() {
   const [restoringState, setRestoringState] = useState(false);
   const [aeratorStatus, setAeratorStatus] = useState("Aerator Off");
   const autoModeRef = useRef(false);
-  const aeratorsRef = useRef(defaultAerators);
-  const lastAutoCheckRef = useRef({});
+  const aeratorsRef = useRef<Aerator[]>(defaultAerators);
+  const lastAutoCheckRef = useRef<Record<string, boolean>>({});
 
   // Update refs when state changes
   useEffect(() => {
@@ -153,7 +166,7 @@ export default function KontrolTambakPage() {
   };
 
   // === SAVE AERATOR STATES TO LOCALSTORAGE ===
-  const saveAeratorStates = (states) => {
+  const saveAeratorStates = (states: typeof defaultAerators) => {
     try {
       localStorage.setItem('aeratorStates', JSON.stringify(states));
     } catch (error) {
@@ -185,7 +198,7 @@ export default function KontrolTambakPage() {
   // === SAVE AUTO MODE STATES TO LOCALSTORAGE ===
   useEffect(() => {
     try {
-      localStorage.setItem("autoMode", isAutoMode);
+      localStorage.setItem("autoMode", isAutoMode.toString());
       localStorage.setItem("autoActivated", autoActivated.toString());
       localStorage.setItem("autoActivationReason", autoActivationReason);
     } catch (error) {
@@ -292,7 +305,7 @@ export default function KontrolTambakPage() {
     const currentStateKey = `${suhuStatus}-${kekeruhanStatus}-${autoActivated}`;
     
     // Skip if state hasn't changed
-    if (lastAutoCheckRef.current.key === currentStateKey) return;
+    if ((lastAutoCheckRef.current as { key?: string }).key === currentStateKey) return;
     
     console.log('Auto mode check:', {
       suhuStatus,
@@ -359,7 +372,7 @@ export default function KontrolTambakPage() {
     }
     
     // Update last check state
-    lastAutoCheckRef.current = {
+    (lastAutoCheckRef.current as { key?: string; timestamp?: number }) = {
       key: currentStateKey,
       timestamp: Date.now()
     };
@@ -375,12 +388,14 @@ export default function KontrolTambakPage() {
   const hasWarning = suhuStatus === "buruk" || kekeruhanStatus === "buruk" || 
                     suhuStatus === "waspada" || kekeruhanStatus === "waspada";
 
-  const handleAeratorToggle = async (aeratorId) => {
+  const handleAeratorToggle = async (aeratorId: number) => {
     // Prevent manual control in auto mode
     if (isAutoMode || loading || initialLoading || isProcessing) return;
 
     setIsProcessing(true);
     const currentAerator = aerators.find(a => a.id === aeratorId);
+    if (!currentAerator) return;
+    
     const newStatus = !currentAerator.status;
     const previousAerators = [...aerators];
     
@@ -415,9 +430,10 @@ export default function KontrolTambakPage() {
       }
       
       setError(null);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error toggling aerator:', error);
-      setError(`Failed to toggle aerator: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Failed to toggle aerator: ${errorMessage}`);
       // Revert the optimistic update
       setAerators(previousAerators);
       saveAeratorStates(previousAerators);
@@ -426,7 +442,7 @@ export default function KontrolTambakPage() {
     }
   };
 
-  const toggleAllAerators = async (status) => {
+  const toggleAllAerators = async (status: boolean) => {
     // Prevent manual control in auto mode
     if (isAutoMode || loading || initialLoading || isProcessing) return;
 
@@ -458,9 +474,10 @@ export default function KontrolTambakPage() {
       }
       
       setError(null);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error toggling all aerators:', error);
-      setError(`Failed to toggle all aerators: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Failed to toggle all aerators: ${errorMessage}`);
       setAerators(previousAerators);
       saveAeratorStates(previousAerators);
     } finally {
@@ -519,9 +536,10 @@ export default function KontrolTambakPage() {
       }
 
       setError(null);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error updating auto mode:', error);
-      setError(`Failed to update mode: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Failed to update mode: ${errorMessage}`);
       // Revert the mode change
       setIsAutoMode(!newMode);
     } finally {
@@ -529,10 +547,10 @@ export default function KontrolTambakPage() {
     }
   };
 
-  const formatLastUpdate = (date) => {
+  const formatLastUpdate = (date: Date | null) => {
     if (!date) return '-';
     const now = new Date();
-    const diff = Math.floor((now - date) / 1000);
+    const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
     if (diff < 60) return `${diff} detik yang lalu`;
     if (diff < 3600) return `${Math.floor(diff / 60)} menit yang lalu`;
     return date.toLocaleTimeString('id-ID');
@@ -640,10 +658,10 @@ export default function KontrolTambakPage() {
                 ⚠️ Peringatan Sistem Monitoring
               </p>
               <ul className="text-sm text-red-600 dark:text-red-400/80 space-y-1">
-                {suhuStatus === "buruk" && (
+                {suhuStatus === "buruk" && sensorData.suhu !== null && (
                   <li>• Suhu air {sensorData.suhu > 35 ? 'sangat tinggi' : sensorData.suhu < 20 ? 'sangat rendah' : 'tidak normal'} ({sensorData.suhu}°C)</li>
                 )}
-                {suhuStatus === "waspada" && (
+                {suhuStatus === "waspada" && sensorData.suhu !== null && (
                   <li>• Suhu air {sensorData.suhu > 32 ? 'tinggi' : 'rendah'} ({sensorData.suhu}°C)</li>
                 )}
                 {kekeruhanStatus === "buruk" && (
@@ -761,8 +779,8 @@ export default function KontrolTambakPage() {
                     : "text-yellow-700 dark:text-yellow-400"
                 }`}>
                   {suhuStatus === "buruk" 
-                    ? `Suhu ${sensorData.suhu > 35 ? 'sangat tinggi' : sensorData.suhu < 20 ? 'sangat rendah' : 'tidak normal'}. ${isAutoMode ? 'Aerator akan aktif otomatis.' : 'Segera periksa kondisi tambak!'}`
-                    : `Suhu ${sensorData.suhu > 32 ? 'tinggi' : 'rendah'}. ${isAutoMode ? 'Monitor kondisi dengan seksama.' : 'Pertimbangkan untuk mengaktifkan aerator.'}`
+                    ? `Suhu ${(sensorData.suhu ?? 0) > 35 ? 'sangat tinggi' : (sensorData.suhu ?? 0) < 20 ? 'sangat rendah' : 'tidak normal'}. ${isAutoMode ? 'Aerator akan aktif otomatis.' : 'Segera periksa kondisi tambak!'}`
+                    : `Suhu ${(sensorData.suhu ?? 0) > 32 ? 'tinggi' : 'rendah'}. ${isAutoMode ? 'Monitor kondisi dengan seksama.' : 'Pertimbangkan untuk mengaktifkan aerator.'}`
                   }
                 </p>
               </div>
