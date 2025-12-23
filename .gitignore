@@ -30,6 +30,9 @@ yarn-error.log*
 .env.production
 .env
 
+# SSL certificates (contains private keys!)
+/certbot/
+
 # vercel
 .vercel
 
@@ -38,4 +41,5 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+DEPLOYMENT-WSL.md
 DEPLOYMENT.md

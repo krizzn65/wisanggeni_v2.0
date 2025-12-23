@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  wisanggeni-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wisanggeni-app
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - NODE_ENV=production
+    depends_on:
+      - wisanggeni-mysql
+    networks:
+      - wisanggeni-network
+
+  wisanggeni-mysql:
+    image: mysql:8.0
+    container_name: wisanggeni-mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root123
+      - MYSQL_DATABASE=wisanggeni
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - wisanggeni-network
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: wisanggeni-n8n
+    restart: unless-stopped
+    ports:
+      - "5679:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-admin123}
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5679}
+      - GENERIC_TIMEZONE=Asia/Jakarta
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - wisanggeni-network
+
+volumes:
+  mysql_data:
+  n8n_data:
+
+networks:
+  wisanggeni-network:
+    driver: bridge
