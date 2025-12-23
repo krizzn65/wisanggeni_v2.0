@@ -1,23 +1,15 @@
-import { NextRequest } from "next/server"
-import { initSocket } from "@/lib/socketServer"
+import { NextRequest, NextResponse } from "next/server"
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
+// Route Segment Config untuk Next.js 14 App Router
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
-  if (!(global as any).io) {
-    const { Server } = require("socket.io")
-    const server = require("http").createServer()
-    const io = new Server(server, {
-      cors: {
-        origin: "*",
-      },
-    })
-    ;(global as any).io = io
-  }
-
-  return new Response("Socket server aktif", { status: 200 })
+  // Socket.IO tidak bisa dijalankan langsung di Next.js App Router
+  // Gunakan custom server atau service terpisah untuk WebSocket
+  
+  return NextResponse.json({ 
+    status: "ok",
+    message: "Socket endpoint ready. Use separate WebSocket server for real-time connections."
+  })
 }
