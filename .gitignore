@@ -43,3 +43,5 @@ next-env.d.ts
 /lib/generated/prisma
 DEPLOYMENT-WSL.md
 DEPLOYMENT.md
+.env
+POSTMAN-TESTING.md

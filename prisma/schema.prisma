@@ -92,6 +92,7 @@ model sensors {
   ph         Float?
   suhu       Float?
   kekeruhan  Float?
+  kualitas   Float?    // Skor 0-100 dihitung saat data masuk
   created_at DateTime  @default(now()) @db.DateTime(0)
   updated_at DateTime? @db.DateTime(0)
 }
